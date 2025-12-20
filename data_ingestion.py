@@ -1,0 +1,49 @@
+import yfinance as yf
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import warnings
+warnings.filterwarnings('ignore')
+
+# Configuration
+STOCKS = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA']
+
+# Set dates to month boundaries
+END_DATE = datetime.now().replace(
+    day=1) - timedelta(days=1)  # Last day of previous month
+
+# First day of month 12 months ago
+START_DATE = (END_DATE - timedelta(days=365)).replace(day=1)
+
+print("=" * 60)
+print("STOCK PRICE PREDICTION - NEXT DAY CLOSING")
+print("=" * 60)
+print(f"\nFetching data from {START_DATE.date()} to {END_DATE.date()}")
+print(f"Stocks: {', '.join(STOCKS)}\n")
+
+# Fetch stock data
+all_data = []
+for ticker in STOCKS:
+    print(f"Downloading {ticker}...")
+    df = yf.download(ticker, start=START_DATE, end=END_DATE, progress=False)
+
+    # Flatten MultiIndex columns if present
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+
+    df['Ticker'] = ticker
+    df.reset_index(inplace=True)
+    all_data.append(df)
+
+# Combine all stock data
+data = pd.concat(all_data, ignore_index=True)
+
+print(f"\nTotal records fetched: {len(data)}")
+print(
+    f"Date range: {data['Date'].min().date()} to {data['Date'].max().date()}")
+
+print("\nSaving raw data to 'stock_data.csv'...")
+data.to_csv(r'data\raw\stock_data.csv', index=False)
