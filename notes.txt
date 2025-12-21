@@ -1,1 +1,2 @@
 to start mlflow ui: mlflow ui --backend-store-uri sqlite:///mlflow.db
+to run fastapi endpoint: python -m uvicorn endpoint1:app
