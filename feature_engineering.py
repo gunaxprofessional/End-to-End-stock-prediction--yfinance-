@@ -12,22 +12,17 @@ def create_features(df):
     df['Close_Open_Pct'] = (df['Close'] - df['Open']) / df['Open']
 
     # Moving averages
-    df['MA_5'] = df['Close'].rolling(window=5).mean()
-    df['MA_10'] = df['Close'].rolling(window=10).mean()
-    df['MA_20'] = df['Close'].rolling(window=20).mean()
+    df['MA_3'] = df['Close'].rolling(window=3).mean()
+    df['MA_6'] = df['Close'].rolling(window=6).mean()
+    df['MA_8'] = df['Close'].rolling(window=8).mean()
 
     # Volatility
-    df['Volatility_5'] = df['Returns'].rolling(window=5).std()
-    df['Volatility_10'] = df['Returns'].rolling(window=10).std()
+    df['Volatility_3'] = df['Returns'].rolling(window=3).std()
+    df['Volatility_6'] = df['Returns'].rolling(window=6).std()
 
     # Volume features
-    df['Volume_MA_5'] = df['Volume'].rolling(window=5).mean()
-    df['Volume_Ratio'] = df['Volume'] / df['Volume_MA_5']
-
-    # Lag features
-    df['Close_Lag_1'] = df['Close'].shift(1)
-    df['Close_Lag_2'] = df['Close'].shift(2)
-    df['Close_Lag_3'] = df['Close'].shift(3)
+    df['Volume_MA_3'] = df['Volume'].rolling(window=3).mean()
+    df['Volume_Ratio'] = df['Volume'] / df['Volume_MA_3']
 
     # Target: Next day closing price
     df['Target'] = df['Close'].shift(-1)
@@ -40,12 +35,13 @@ print("Loading raw data from 'stock_data.csv'...")
 data = pd.read_csv(r'data\raw\stock_data.csv')
 STOCKS = data['Ticker'].unique()
 
-# Apply feature engineering to each stock
+# Apply feature engineering to each stock using groupby
 print("Applying feature engineering...")
 data_with_features = []
-for ticker in STOCKS:
+
+grouped_data = data.groupby('Ticker')
+for ticker, ticker_data in grouped_data:
     print(f"Processing features for {ticker}...")
-    ticker_data = data[data['Ticker'] == ticker].copy()
     ticker_data = ticker_data.sort_values('Date')
     ticker_data = create_features(ticker_data)
     data_with_features.append(ticker_data)
@@ -56,5 +52,4 @@ print("Ticker counts:", data.groupby('Ticker').size())
 
 # Save processed data
 print("\nSaving processed data to 'stock_data_processed.csv'...")
-data.dropna(inplace=True)
 data.to_csv(r'data\processed\stock_data_processed.csv', index=False)
