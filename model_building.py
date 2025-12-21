@@ -157,6 +157,22 @@ def model_training(train_data, test_data):
             print(f"New Model R2 ({r2:.4f}) <= Champion R2 ({champion_r2:.4f}) or Threshold (0.85).")
             print(f"Version {version} remains a candidate.")
 
+        print("Model training and logging completed.")
+
+        try:
+            print("Logging SHAP background dataset...")
+            # logging sample data for shap
+            background = X_train.sample(n=min(100, len(X_train)), random_state=42)
+
+            # Save background dataset
+            background_path = "shap_background.parquet"
+            background.to_parquet(background_path)
+
+            # Log as MLflow artifact
+            mlflow.log_artifact(background_path, artifact_path="shap")
+        except Exception as e:
+            print(f"Failed to log SHAP background dataset: {e}")
+
         return run.info.run_id
 
 if __name__ == "__main__":

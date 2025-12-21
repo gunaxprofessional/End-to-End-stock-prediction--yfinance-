@@ -10,19 +10,20 @@ mlflow.set_tracking_uri("sqlite:///mlflow.db")
 app = fastapi.FastAPI()
 model = mlflow.pyfunc.load_model("models:/StockPricePredictor@champion")
 
-class StockData(BaseModel):
-    Date: List[str]
-    Open: List[float]
-    High: List[float]
-    Low: List[float]
-    Close: List[float]
-    Volume: List[int]
+@app.get("/predict_next_close")
+def predict_next_close():
+    # Load processed data
+    data = pd.read_csv("data/processed/stock_data_processed.csv")
+    data['Date'] = pd.to_datetime(data['Date'])
+    latest_date = pd.to_datetime('2025-11-28')
+    latest_rows = data[data['Date'] == latest_date]
 
-@app.post("/predict")
-def predict_stock_prices(data: StockData):
-    input_df = pd.DataFrame(data.dict())
-    predictions = model.predict(input_df)
-    return {"predictions": predictions.tolist()}
+    # Drop columns not used for prediction
+    feature_cols = [col for col in latest_rows.columns if col not in ['Date', 'Ticker', 'Target']]
+    X_latest = latest_rows[feature_cols].astype('float64')
+    tickers = latest_rows['Ticker'].tolist()
+    preds = model.predict(X_latest)
+    return {ticker: pred for ticker, pred in zip(tickers, preds)}
 
 if __name__ == "__main__":
     import uvicorn
