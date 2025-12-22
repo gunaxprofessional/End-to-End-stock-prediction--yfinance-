@@ -8,3 +8,4 @@ psutil==6.0.0
 yfinance
 fastapi[standard]
 shap==0.45.1
+evidently==0.7.14
