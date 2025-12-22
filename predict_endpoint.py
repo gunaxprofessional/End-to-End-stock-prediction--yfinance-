@@ -5,6 +5,7 @@ import mlflow.sklearn
 import shap
 from mlflow.tracking import MlflowClient
 from datetime import timedelta, datetime
+import os
 
 # CONFIG
 MODEL_NAME = "StockPricePredictor"
@@ -84,6 +85,7 @@ def predict_next_close():
     response = {}
     for i, ticker in enumerate(tickers):
         response[ticker] = {
+            "date": LATEST_DATE.date(),
             "prediction": float(predictions[i]),
             "shap_values": {
                 feature_cols[j]: float(shap_values[i][j])
@@ -92,13 +94,36 @@ def predict_next_close():
         }
 
     # logging prediction
-    prediction_df = pd.DataFrame(response)
-    prediction_df["Date"] = LATEST_DATE.date()
-    prediction_df["Ticker"] = tickers
-    prediction_df["Prediction"] = predictions
-    prediction_df["ShapValues"] = shap_values.tolist()
+    prediction_df = pd.DataFrame({
+        "Date": LATEST_DATE.date(),
+        "Ticker": tickers,
+        "Prediction": predictions,
+        "Actual": None
+    })
+    
+    # Add input features to prediction_df
+    prediction_df = pd.concat([prediction_df, X_latest.reset_index(drop=True)], axis=1)
 
-    prediction_df.to_csv("data/predictions/predictions.csv", index=False)
+    # Save Prediction DataFrame
+    pred_path = "data/predictions/predictions.csv"
+    if os.path.exists(pred_path):
+        existing_df = pd.read_csv(pred_path)
+        prediction_df = pd.concat([existing_df, prediction_df], ignore_index=True)
+    
+    prediction_df.to_csv(pred_path, index=False)
+
+    # 2. SHAP DataFrame
+    shap_df = pd.DataFrame(shap_values, columns=feature_cols)
+    shap_df.insert(0, "Ticker", tickers)
+    shap_df.insert(0, "Date", LATEST_DATE.date())
+
+    # Save SHAP DataFrame
+    shap_path = "data/predictions/shap_values.csv"
+    if os.path.exists(shap_path):
+        existing_shap = pd.read_csv(shap_path)
+        shap_df = pd.concat([existing_shap, shap_df], ignore_index=True)
+    
+    shap_df.to_csv(shap_path, index=False)
 
     return response
 
