@@ -5,6 +5,7 @@ import mlflow.sklearn
 import shap
 from mlflow.tracking import MlflowClient
 from datetime import timedelta, datetime
+from pathlib import Path
 import os
 
 # CONFIG
@@ -12,7 +13,7 @@ MODEL_NAME = "StockPricePredictor"
 MODEL_ALIAS = "champion"
 TRACKING_URI = "sqlite:///mlflow.db"
 
-DATA_PATH = "data/processed/stock_data_processed.csv"
+DATA_PATH = Path("data") / "processed" / "stock_data_processed.csv"
 
 LATEST_DATE = pd.to_datetime(datetime.now().date()) - timedelta(days=1)  # yesterday date
 # LATEST_DATE = pd.to_datetime("2025-12-19",format="%Y-%m-%d")
@@ -105,7 +106,7 @@ def predict_next_close():
     prediction_df = pd.concat([prediction_df, X_latest.reset_index(drop=True)], axis=1)
 
     # Save Prediction DataFrame
-    pred_path = "data/predictions/predictions.csv"
+    pred_path = Path("data") / "predictions" / "predictions.csv"
     if os.path.exists(pred_path):
         existing_df = pd.read_csv(pred_path)
         prediction_df = pd.concat([existing_df, prediction_df], ignore_index=True)
@@ -118,7 +119,7 @@ def predict_next_close():
     shap_df.insert(0, "Date", LATEST_DATE.date())
 
     # Save SHAP DataFrame
-    shap_path = "data/predictions/shap_values.csv"
+    shap_path = Path("data") / "predictions" / "shap_values.csv"
     if os.path.exists(shap_path):
         existing_shap = pd.read_csv(shap_path)
         shap_df = pd.concat([existing_shap, shap_df], ignore_index=True)

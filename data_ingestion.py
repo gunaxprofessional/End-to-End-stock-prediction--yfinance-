@@ -2,10 +2,8 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import warnings
+from pathlib import Path
 warnings.filterwarnings('ignore')
 
 # Configuration
@@ -47,4 +45,5 @@ print(
     f"Date range: {data['Date'].min().date()} to {data['Date'].max().date()}")
 
 print("\nSaving raw data to 'stock_data.csv'...")
-data.to_csv(r'data\raw\stock_data.csv', index=False)
+output_path = Path("data") / "raw" / "stock_data.csv"
+data.to_csv(output_path, index=False)

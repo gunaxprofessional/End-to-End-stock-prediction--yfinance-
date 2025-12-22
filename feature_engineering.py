@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+from pathlib import Path
+
 
 
 def create_features(df):
@@ -32,7 +34,8 @@ def create_features(df):
 
 # Load raw data
 print("Loading raw data from 'stock_data.csv'...")
-data = pd.read_csv(r'data\raw\stock_data.csv')
+data_path = Path("data") / "raw" / "stock_data.csv"
+data = pd.read_csv(data_path)
 STOCKS = data['Ticker'].unique()
 
 # Apply feature engineering to each stock using groupby
@@ -52,4 +55,5 @@ print("Ticker counts:", data.groupby('Ticker').size())
 
 # Save processed data
 print("\nSaving processed data to 'stock_data_processed.csv'...")
-data.to_csv(r'data\processed\stock_data_processed.csv', index=False)
+data_path = Path("data") / "processed" / "stock_data_processed.csv"
+data.to_csv(data_path, index=False)
