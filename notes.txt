@@ -1,2 +1,8 @@
+flow:
+    1. run data_ingestion.py : will retreives the latest data from yfinance and save it in data/raw folder
+    2. run feature_engineering.py : will create features and save it in data/processed folder
+    3. run model_building.py: "will train the model and compare with the champion model and save the best model alias with champion model"
+    4. run predict_endpoint.py: will predict next day close and with shap values.
+    
 to start mlflow ui: mlflow ui --backend-store-uri sqlite:///mlflow.db
-to run fastapi endpoint: python -m uvicorn endpoint1:app
+to run fastapi endpoint: python -m uvicorn predict_endpoint:app

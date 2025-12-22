@@ -11,17 +11,18 @@ warnings.filterwarnings('ignore')
 # Configuration
 STOCKS = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA']
 
-# Set dates to month boundaries
-END_DATE = datetime.now().replace(
-    day=1) - timedelta(days=1)  # Last day of previous month
+# END DATE
+END_DATE = datetime.now().date() - timedelta(days=1)  # yesterday
 
-# First day of month 12 months ago
-START_DATE = (END_DATE - timedelta(days=365)).replace(day=1)
+END_DATE = pd.to_datetime(END_DATE)
+
+# START DATE
+START_DATE = pd.to_datetime("22-12-2024",format="%d-%m-%Y")
 
 print("=" * 60)
 print("STOCK PRICE PREDICTION - NEXT DAY CLOSING")
 print("=" * 60)
-print(f"\nFetching data from {START_DATE.date()} to {END_DATE.date()}")
+print(f"\nFetching data from {START_DATE} to {END_DATE.date()}")
 print(f"Stocks: {', '.join(STOCKS)}\n")
 
 # Fetch stock data

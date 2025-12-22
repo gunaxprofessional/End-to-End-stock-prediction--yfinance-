@@ -4,6 +4,7 @@ import mlflow
 import mlflow.sklearn
 import shap
 from mlflow.tracking import MlflowClient
+from datetime import timedelta, datetime
 
 # CONFIG
 MODEL_NAME = "StockPricePredictor"
@@ -11,7 +12,9 @@ MODEL_ALIAS = "champion"
 TRACKING_URI = "sqlite:///mlflow.db"
 
 DATA_PATH = "data/processed/stock_data_processed.csv"
-LATEST_DATE = "2025-11-28"
+
+LATEST_DATE = pd.to_datetime(datetime.now().date()) - timedelta(days=1)  # yesterday date
+# LATEST_DATE = pd.to_datetime("2025-12-19",format="%Y-%m-%d")
 
 # APP INIT
 app = fastapi.FastAPI()
@@ -38,11 +41,15 @@ background_path = client.download_artifacts(
 
 shap_background = pd.read_parquet(background_path)
 
-# CREATE SHAP EXPLAINER (ONCE)
+# CREATE SHAP EXPLAINER
 explainer = shap.TreeExplainer(
     model,
     shap_background
 )
+
+@app.get("/")
+def read_root():
+    return {"welcome": "welcome to stock price prediction api"}
 
 # API ENDPOINT
 @app.get("/predict_next_close")
@@ -57,7 +64,7 @@ def predict_next_close():
     latest_rows = data[data["Date"] == pd.to_datetime(LATEST_DATE)]
 
     if latest_rows.empty:
-        return {"error": "No data found for latest date"}
+        return {"error": f"No data found for latest date: {LATEST_DATE.date()}, Data available till {data['Date'].max().date()}"}
 
     feature_cols = [
         c for c in latest_rows.columns
@@ -83,6 +90,15 @@ def predict_next_close():
                 for j in range(len(feature_cols))
             }
         }
+
+    # logging prediction
+    prediction_df = pd.DataFrame(response)
+    prediction_df["Date"] = LATEST_DATE.date()
+    prediction_df["Ticker"] = tickers
+    prediction_df["Prediction"] = predictions
+    prediction_df["ShapValues"] = shap_values.tolist()
+
+    prediction_df.to_csv("data/predictions/predictions.csv", index=False)
 
     return response
 
