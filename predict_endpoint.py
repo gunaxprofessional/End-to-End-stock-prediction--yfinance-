@@ -7,6 +7,20 @@ from mlflow.tracking import MlflowClient
 from datetime import timedelta, datetime
 from pathlib import Path
 import os
+from feast import FeatureStore
+
+store = FeatureStore(repo_path="feature_repo")
+
+# Define features to retrieve from Feast (same as in model_building.py)
+FEAST_FEATURES = [
+    "stock_features:Close", "stock_features:High",
+    "stock_features:Low", "stock_features:Open",
+    "stock_features:Volume", "stock_features:Returns",
+    "stock_features:High_Low_Pct", "stock_features:Close_Open_Pct",
+    "stock_features:MA_3", "stock_features:MA_6", "stock_features:MA_8",
+    "stock_features:Volatility_3", "stock_features:Volatility_6",
+    "stock_features:Volume_MA_3", "stock_features:Volume_Ratio"
+]
 
 # CONFIG
 MODEL_NAME = "StockPricePredictor"
@@ -63,18 +77,30 @@ def predict_next_close():
     data = pd.read_csv(DATA_PATH)
     data["Date"] = pd.to_datetime(data["Date"])
 
-    latest_rows = data[data["Date"] == pd.to_datetime(LATEST_DATE)]
+    # Get unique tickers from the data to query Feast
+    tickers = data["Ticker"].unique().tolist()
+    
+    # Retrieve online features from Feast
+    print(f"Retrieving online features for {len(tickers)} tickers from Feast...")
+    entity_rows = [{"ticker": ticker} for ticker in tickers]
+    
+    online_features = store.get_online_features(
+        features=FEAST_FEATURES,
+        entity_rows=entity_rows
+    ).to_dict()
 
-    if latest_rows.empty:
-        return {"error": f"No data found for latest date: {LATEST_DATE.date()}, Data available till {data['Date'].max().date()}"}
+    # Convert to DataFrame and fix column names
+    X_latest_df = pd.DataFrame(online_features)
+    
+    # Map Feast feature names (stock_features:Feature) back to simple names (Feature)
+    # The model expects simple names like 'Close', 'MA_3', etc.
+    feature_map = {f: f.split(':')[-1] for f in FEAST_FEATURES}
+    X_latest_df = X_latest_df.rename(columns=feature_map)
 
-    feature_cols = [
-        c for c in latest_rows.columns
-        if c not in ["Date", "Ticker", "Target"]
-    ]
-
-    X_latest = latest_rows[feature_cols].astype(float)
-    tickers = latest_rows["Ticker"].tolist()
+    # Reorder columns to match the features used during training
+    # Note: excluding 'ticker' as it's the entity key
+    feature_cols = [f.split(':')[-1] for f in FEAST_FEATURES]
+    X_latest = X_latest_df[feature_cols].astype(float)
 
 
     # PREDICTION (SKLEARN)
@@ -132,4 +158,4 @@ def predict_next_close():
 # LOCAL RUN
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8001)

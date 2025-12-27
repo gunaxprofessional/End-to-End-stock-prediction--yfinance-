@@ -1,10 +1,11 @@
 flow:
     1. run data_ingestion.py : will retreives the latest data from yfinance and save it in data/raw folder
     2. run feature_engineering.py : will create features and save it in data/processed folder
-    3. run model_building.py: "will train the model and compare with the champion model and save the best model alias with champion model"
-    4. run predict_endpoint.py: will predict next day close and with shap values.
-    5. run update_actuals.py: will update the actual values in the predictions.csv file. (dont expect every actual value to be updated as yfinance data is not available for every day)
-    6. run monitoring_evidently.py: will generate data drift and regression performance reports.
+    3. run materialize_features.py : will materialize the features in data/processed folder
+    4. run model_building.py: "will train the model and compare with the champion model and save the best model alias with champion model"
+    5. run predict_endpoint.py: will predict next day close and with shap values.
+    6. run update_actuals.py: will update the actual values in the predictions.csv file. (dont expect every actual value to be updated as yfinance data is not available for every day)
+    7. run monitoring_evidently.py: will generate data drift and regression performance reports.
     
 to start mlflow ui: mlflow ui --backend-store-uri sqlite:///mlflow.db
 to run fastapi endpoint: python -m uvicorn predict_endpoint:app

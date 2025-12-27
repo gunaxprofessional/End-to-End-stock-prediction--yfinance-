@@ -8,9 +8,20 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import os
 import datetime
 
+from feast import FeatureStore
+
+store = FeatureStore(repo_path="feature_repo")
+
 # --- CONFIGURATION ---
 MODEL_NAME = "StockPricePredictor"
 EXPERIMENT_NAME = "Stock_Price_Prediction"
+features = ["stock_features:Close", "stock_features:High",
+        "stock_features:Low", "stock_features:Open",
+        "stock_features:Volume", "stock_features:Returns",
+        "stock_features:High_Low_Pct", "stock_features:Close_Open_Pct",
+        "stock_features:MA_3", "stock_features:MA_6", "stock_features:MA_8",
+        "stock_features:Volatility_3", "stock_features:Volatility_6",
+        "stock_features:Volume_MA_3", "stock_features:Volume_Ratio"]
 
 # Set tracking URI to use SQLite database
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
@@ -25,6 +36,36 @@ def load_data():
         return data
     except Exception as e:
         raise Exception(f"Error loading data: {str(e)}")
+
+def load_data_store():
+    """Load data from Feast feature store."""
+    print("Loading data from Feast feature store...")
+    # Load processed data to get the Target column for the entity dataframe
+    data_path = os.path.join('data', 'processed', 'stock_data_processed.csv')
+
+    try:
+        entity_df = pd.read_csv(data_path)
+        # Ensure timestamp is UTC for Feast
+        entity_df['event_timestamp'] = pd.to_datetime(entity_df['Date']).dt.tz_localize('UTC')
+        entity_df['ticker'] = entity_df['Ticker']
+        print(f"Entity DataFrame loaded. Records: {len(entity_df)}")
+    except Exception as e:
+        raise Exception(f"Error loading data from Feast: {str(e)}")    
+
+    print("Retrieving historical features from Feast...")  
+    training_df = store.get_historical_features(
+        entity_df=entity_df[['event_timestamp', 'ticker', 'Target']],
+        features=features
+    ).to_df()
+
+    print(f"Feast retrieval complete. Records: {len(training_df)}")
+    print(f"Training DF Columns: {training_df.columns.tolist()}")
+
+    training_df = training_df.rename(columns={"event_timestamp": "Date"})   
+    # Strip timezone for consistency with the rest of the pipeline (naive timestamps)
+    training_df['Date'] = pd.to_datetime(training_df['Date']).dt.tz_localize(None)
+
+    return training_df
 
 def split_data(data):
     """Split data into training and testing sets based on date ranges."""
@@ -64,7 +105,7 @@ def model_training(train_data, test_data):
     client = MlflowClient()
     mlflow.set_experiment(EXPERIMENT_NAME)
 
-    feature_cols = [col for col in train_data.columns if col not in ['Date', 'Ticker', 'Target']]
+    feature_cols = [col for col in train_data.columns if col.lower() not in ['date', 'ticker', 'target', 'event_timestamp']]
     print(f"Feature columns: {feature_cols}")
     X_train, y_train = train_data[feature_cols], train_data['Target']
     X_test, y_test = test_data[feature_cols], test_data['Target']
@@ -179,8 +220,12 @@ if __name__ == "__main__":
     try:
         print("Pipeline started...")
         raw_data = load_data()
-        train, test = split_data(raw_data)
+        raw_data_store = load_data_store()
+        # Use Feast data for training
+        train, test = split_data(raw_data_store)
         run_id = model_training(train, test)
         print(f"Pipeline finished successfully. Run ID: {run_id}")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Pipeline failed: {e}")

@@ -5,6 +5,7 @@ __pycache__/
 *.db
 *.sqlite
 *.pyc
+*.html
 *.parquet
 *.csv
 .ipynb_checkpoints
