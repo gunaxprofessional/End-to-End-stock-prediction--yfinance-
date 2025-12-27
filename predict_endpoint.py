@@ -15,8 +15,8 @@ TRACKING_URI = "sqlite:///mlflow.db"
 
 DATA_PATH = Path("data") / "processed" / "stock_data_processed.csv"
 
-LATEST_DATE = pd.to_datetime(datetime.now().date()) - timedelta(days=1)  # yesterday date
-# LATEST_DATE = pd.to_datetime("2025-12-19",format="%Y-%m-%d")
+# LATEST_DATE = pd.to_datetime(datetime.now().date()) - timedelta(days=1)  # yesterday date
+LATEST_DATE = pd.to_datetime("2025-12-24",format="%Y-%m-%d")
 
 # APP INIT
 app = fastapi.FastAPI()
