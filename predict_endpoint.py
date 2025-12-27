@@ -1,5 +1,6 @@
 import fastapi
 import pandas as pd
+import requests
 import mlflow
 import mlflow.sklearn
 import shap
@@ -8,6 +9,9 @@ from datetime import timedelta, datetime
 from pathlib import Path
 import os
 from feast import FeatureStore
+from dotenv import load_dotenv
+
+load_dotenv()
 
 store = FeatureStore(repo_path="feature_repo")
 
@@ -63,6 +67,95 @@ explainer = shap.TreeExplainer(
     shap_background
 )
 
+def get_llm_summary(shap_dict: dict, prediction: float, ticker: str) -> str:
+    """Generate human-readable explanation using HuggingFace LLM"""
+
+    # Sort features by absolute SHAP value impact
+    sorted_features = sorted(
+        shap_dict.items(), key=lambda x: abs(x[1]), reverse=True)
+    top_features = [(feat, val)
+                    for feat, val in sorted_features if abs(val) > 0.0001][:5]
+
+    # If no significant SHAP values
+    if not top_features:
+        return f"The model predicts the next closing price for {ticker} to be {prediction:.2f}. No specific feature showed a significant impact on this prediction."
+
+    # Create detailed explanations
+    feature_explanations = []
+    for feature, value in top_features:
+        direction = "up" if value > 0 else "down"
+
+        # Map to human readable names
+        clean_name = feature.replace('_', ' ')
+        if 'MA' in feature:
+            period = feature.split('_')[-1]
+            clean_name = f"{period}-day moving average"
+        elif 'Volatility' in feature:
+            period = feature.split('_')[-1]
+            clean_name = f"{period}-day price volatility"
+        elif 'Volume' in feature and 'MA' in feature:
+             clean_name = "3-day average trading volume"
+        elif 'High_Low_Pct' in feature:
+            clean_name = "daily price range (High-Low)"
+
+        feature_explanations.append(
+            f"{clean_name} pushed the prediction {direction} (impact: {value:+.4f})")
+
+    prompt = f"""Explain this stock price prediction clearly and concisely:
+
+                Ticker: {ticker}
+                Predicted Next Close: {prediction:.2f}
+
+                Key technical factors driving this prediction:
+                {chr(10).join(feature_explanations)}
+
+                Write a brief 2-3 sentence explanation for why this prediction was made based on these technical indicators."""
+
+    try:
+        hf_token = os.getenv("HF_TOKEN")
+        if not hf_token:
+            reasons = ". ".join(feature_explanations[:2])
+            return f"The predicted close for {ticker} is {prediction:.2f}. {reasons}."
+
+        response = requests.post(
+            "https://router.huggingface.co/models/facebook/bart-large-cnn",
+            headers={
+                "Authorization": f"Bearer {hf_token}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "inputs": prompt,
+                "parameters": {
+                    "max_length": 150,
+                    "min_length": 30,
+                    "do_sample": False
+                }
+            },
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            if isinstance(result, list) and len(result) > 0:
+                summary = result[0].get('summary_text') or result[0].get(
+                    'generated_text', '')
+                if summary:
+                    return summary
+            elif isinstance(result, dict):
+                summary = result.get('summary_text') or result.get(
+                    'generated_text', '')
+                if summary:
+                    return summary
+
+        # Fallback if LLM fails
+        reasons = ". ".join(feature_explanations[:2])
+        return f"The predicted close for {ticker} is {prediction:.2f}. {reasons}."
+
+    except Exception as e:
+        # Always provide a fallback explanation
+        reasons = ". ".join(feature_explanations[:2])
+        return f"The predicted close for {ticker} is {prediction:.2f}. {reasons}."
+
 @app.get("/")
 def read_root():
     return {"welcome": "welcome to stock price prediction api"}
@@ -111,13 +204,19 @@ def predict_next_close():
 
     response = {}
     for i, ticker in enumerate(tickers):
+        ticker_shap = {
+            feature_cols[j]: float(shap_values[i][j])
+            for j in range(len(feature_cols))
+        }
+        
+        # Get LLM Summary
+        summary = get_llm_summary(ticker_shap, float(predictions[i]), ticker)
+
         response[ticker] = {
             "date": LATEST_DATE.date(),
             "prediction": float(predictions[i]),
-            "shap_values": {
-                feature_cols[j]: float(shap_values[i][j])
-                for j in range(len(feature_cols))
-            }
+            "summary": summary,
+            "shap_values": ticker_shap
         }
 
     # logging prediction
@@ -152,7 +251,7 @@ def predict_next_close():
     
     shap_df.to_csv(shap_path, index=False)
 
-    return response
+    return response 
 
 
 # LOCAL RUN
