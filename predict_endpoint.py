@@ -10,67 +10,40 @@ from pathlib import Path
 import os
 from feast import FeatureStore
 from dotenv import load_dotenv
+from storage import MinioArtifactStore
+from config import (
+    MODEL_NAME, MODEL_ALIAS, TRACKING_URI, FEAST_FEATURES,
+    REGISTRY_KEY, ONLINE_STORE_KEY, PROCESSED_DATA_KEY,
+    PREDICTIONS_KEY, SHAP_VALUES_KEY, PREDICTION_DATE
+)
 
 load_dotenv()
 
+minio_store = MinioArtifactStore()
+
+print("Downloading Feast registry and online store...")
+minio_store.download_file(REGISTRY_KEY, "data/registry.db")
+minio_store.download_file(ONLINE_STORE_KEY, "data/online_store.db")
+
 store = FeatureStore(repo_path="feature_repo")
 
-# Define features to retrieve from Feast (same as in model_building.py)
-FEAST_FEATURES = [
-    "stock_features:Close", "stock_features:High",
-    "stock_features:Low", "stock_features:Open",
-    "stock_features:Volume", "stock_features:Returns",
-    "stock_features:High_Low_Pct", "stock_features:Close_Open_Pct",
-    "stock_features:MA_3", "stock_features:MA_6", "stock_features:MA_8",
-    "stock_features:Volatility_3", "stock_features:Volatility_6",
-    "stock_features:Volume_MA_3", "stock_features:Volume_Ratio"
-]
+LATEST_DATE = pd.to_datetime(PREDICTION_DATE, format="%Y-%m-%d")
 
-# CONFIG
-MODEL_NAME = "StockPricePredictor"
-MODEL_ALIAS = "champion"
-TRACKING_URI = "sqlite:///mlflow.db"
-
-DATA_PATH = Path("data") / "processed" / "stock_data_processed.csv"
-
-# LATEST_DATE = pd.to_datetime(datetime.now().date()) - timedelta(days=1)  # yesterday date
-LATEST_DATE = pd.to_datetime("2025-12-24",format="%Y-%m-%d")
-
-# APP INIT
 app = fastapi.FastAPI()
 mlflow.set_tracking_uri(TRACKING_URI)
 
-# LOAD MODEL
 model_uri = f"models:/{MODEL_NAME}@{MODEL_ALIAS}"
 model = mlflow.sklearn.load_model(model_uri)
 
-# LOAD SHAP BACKGROUND
 client = MlflowClient()
-
-model_version = client.get_model_version_by_alias(
-    MODEL_NAME,
-    MODEL_ALIAS
-)
-
+model_version = client.get_model_version_by_alias(MODEL_NAME, MODEL_ALIAS)
 run_id = model_version.run_id
-
-background_path = client.download_artifacts(
-    run_id,
-    "shap/shap_background.parquet"
-)
-
+background_path = client.download_artifacts(run_id, "shap/shap_background.parquet")
 shap_background = pd.read_parquet(background_path)
 
-# CREATE SHAP EXPLAINER
-explainer = shap.TreeExplainer(
-    model,
-    shap_background
-)
+explainer = shap.TreeExplainer(model, shap_background)
 
 def get_llm_summary(shap_dict: dict, prediction: float, ticker: str) -> str:
-    """Generate human-readable explanation using HuggingFace LLM"""
-
-    # Sort features by absolute SHAP value impact
     sorted_features = sorted(
         shap_dict.items(), key=lambda x: abs(x[1]), reverse=True)
     top_features = [(feat, val)
@@ -147,12 +120,10 @@ def get_llm_summary(shap_dict: dict, prediction: float, ticker: str) -> str:
                 if summary:
                     return summary
 
-        # Fallback if LLM fails
         reasons = ". ".join(feature_explanations[:2])
         return f"The predicted close for {ticker} is {prediction:.2f}. {reasons}."
 
     except Exception as e:
-        # Always provide a fallback explanation
         reasons = ". ".join(feature_explanations[:2])
         return f"The predicted close for {ticker} is {prediction:.2f}. {reasons}."
 
@@ -160,46 +131,30 @@ def get_llm_summary(shap_dict: dict, prediction: float, ticker: str) -> str:
 def read_root():
     return {"welcome": "welcome to stock price prediction api"}
 
-# API ENDPOINT
 @app.get("/predict_next_close")
 def predict_next_close():
-    """
-    Predict next close price and return SHAP explanations
-    """
-
-    data = pd.read_csv(DATA_PATH)
+    data = minio_store.load_df(PROCESSED_DATA_KEY)
     data["Date"] = pd.to_datetime(data["Date"])
 
-    # Get unique tickers from the data to query Feast
     tickers = data["Ticker"].unique().tolist()
-    
-    # Retrieve online features from Feast
+
     print(f"Retrieving online features for {len(tickers)} tickers from Feast...")
     entity_rows = [{"ticker": ticker} for ticker in tickers]
-    
+
     online_features = store.get_online_features(
         features=FEAST_FEATURES,
         entity_rows=entity_rows
     ).to_dict()
 
-    # Convert to DataFrame and fix column names
     X_latest_df = pd.DataFrame(online_features)
-    
-    # Map Feast feature names (stock_features:Feature) back to simple names (Feature)
-    # The model expects simple names like 'Close', 'MA_3', etc.
+
     feature_map = {f: f.split(':')[-1] for f in FEAST_FEATURES}
     X_latest_df = X_latest_df.rename(columns=feature_map)
 
-    # Reorder columns to match the features used during training
-    # Note: excluding 'ticker' as it's the entity key
     feature_cols = [f.split(':')[-1] for f in FEAST_FEATURES]
     X_latest = X_latest_df[feature_cols].astype(float)
 
-
-    # PREDICTION (SKLEARN)
     predictions = model.predict(X_latest)
-
-    # SHAP VALUES
     shap_values = explainer.shap_values(X_latest)
 
     response = {}
@@ -208,8 +163,7 @@ def predict_next_close():
             feature_cols[j]: float(shap_values[i][j])
             for j in range(len(feature_cols))
         }
-        
-        # Get LLM Summary
+
         summary = get_llm_summary(ticker_shap, float(predictions[i]), ticker)
 
         response[ticker] = {
@@ -219,42 +173,38 @@ def predict_next_close():
             "shap_values": ticker_shap
         }
 
-    # logging prediction
     prediction_df = pd.DataFrame({
         "Date": LATEST_DATE.date(),
         "Ticker": tickers,
         "Prediction": predictions,
         "Actual": None
     })
-    
-    # Add input features to prediction_df
+
     prediction_df = pd.concat([prediction_df, X_latest.reset_index(drop=True)], axis=1)
 
-    # Save Prediction DataFrame
-    pred_path = Path("data") / "predictions" / "predictions.csv"
-    if os.path.exists(pred_path):
-        existing_df = pd.read_csv(pred_path)
+    try:
+        existing_df = minio_store.load_df(PREDICTIONS_KEY)
         prediction_df = pd.concat([existing_df, prediction_df], ignore_index=True)
-    
-    prediction_df.to_csv(pred_path, index=False)
+    except:
+        pass
 
-    # 2. SHAP DataFrame
+    minio_store.save_df(prediction_df, PREDICTIONS_KEY)
+
     shap_df = pd.DataFrame(shap_values, columns=feature_cols)
     shap_df.insert(0, "Ticker", tickers)
     shap_df.insert(0, "Date", LATEST_DATE.date())
 
-    # Save SHAP DataFrame
-    shap_path = Path("data") / "predictions" / "shap_values.csv"
-    if os.path.exists(shap_path):
-        existing_shap = pd.read_csv(shap_path)
+    try:
+        existing_shap = minio_store.load_df(SHAP_VALUES_KEY)
         shap_df = pd.concat([existing_shap, shap_df], ignore_index=True)
-    
-    shap_df.to_csv(shap_path, index=False)
+    except:
+        pass
 
-    return response 
+    minio_store.save_df(shap_df, SHAP_VALUES_KEY)
+
+    return response
 
 
-# LOCAL RUN
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8001)
