@@ -1,34 +1,29 @@
+from pathlib import Path
 from datetime import timedelta
-from feast import (
-    Entity,
-    FeatureView,
-    Field,
-    FileSource,
-    ValueType,
-)
-from feast.types import Float32, String, Int64
+from feast import Entity, FeatureView, Field, FileSource, ValueType
+from feast.types import Float32
 
-# Define an entity for the stock ticker
 ticker = Entity(
-    name="ticker", 
+    name="ticker",
     join_keys=["ticker"],
-    value_type=ValueType.STRING, 
+    value_type=ValueType.STRING,
     description="Stock Ticker Symbol"
 )
 
-# Define the source of the data
+# Fixed local path for parquet file
+_parquet_path = str(Path(__file__).parent.parent.parent / "artifacts" / "data" / "processed" / "stock_features.parquet")
+
 stock_features_source = FileSource(
     name="stock_features_source",
-    path="../data/processed/stock_features.parquet",
+    path=_parquet_path,
     timestamp_field="Date",
     created_timestamp_column="created_timestamp",
 )
 
-# Define the feature view
 stock_features_view = FeatureView(
     name="stock_features",
     entities=[ticker],
-ttl=timedelta(days=3650), # Long TTL since we have daily data
+    ttl=timedelta(days=3650),
     schema=[
         Field(name="Close", dtype=Float32),
         Field(name="High", dtype=Float32),

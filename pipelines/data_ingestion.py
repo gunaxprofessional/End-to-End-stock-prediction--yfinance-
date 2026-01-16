@@ -1,12 +1,14 @@
 import yfinance as yf
 import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 import warnings
-from pathlib import Path
 warnings.filterwarnings('ignore')
 
-from config import STOCKS, START_DATE, RAW_DATA_KEY
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+from config.global_config import STOCKS, START_DATE, RAW_DATA_PATH
 
 END_DATE = pd.to_datetime(datetime.now().date() - timedelta(days=1))
 START_DATE = pd.to_datetime(START_DATE)
@@ -32,11 +34,8 @@ for ticker in STOCKS:
 data = pd.concat(all_data, ignore_index=True)
 
 print(f"\nTotal records fetched: {len(data)}")
-print(
-    f"Date range: {data['Date'].min().date()} to {data['Date'].max().date()}")
+print(f"Date range: {data['Date'].min().date()} to {data['Date'].max().date()}")
 
-from storage import MinioArtifactStore
-
-print("\nSaving raw data to MinIO...")
-store = MinioArtifactStore()
-store.save_df(data, RAW_DATA_KEY)
+print(f"\nSaving raw data to {RAW_DATA_PATH}...")
+data.to_csv(RAW_DATA_PATH, index=False)
+print("Done.")

@@ -1,13 +1,15 @@
-data/
-venv/
-mlruns/
-__pycache__/
-*.db
-*.sqlite
-*.pyc
-*.html
+# Local artifacts
+artifacts/
 *.parquet
-*.csv
-.ipynb_checkpoints
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Environment
 .env
+.ipynb_checkpoints
+
+# Temporary files
 tmpclaude-*

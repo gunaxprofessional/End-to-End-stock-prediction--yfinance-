@@ -1,8 +1,10 @@
 import pandas as pd
-import numpy as np
-from pathlib import Path
-from io import BytesIO
 
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+from config.global_config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FEATURE_PARQUET_PATH
 
 
 def create_features(df):
@@ -27,13 +29,8 @@ def create_features(df):
     return df
 
 
-from storage import MinioArtifactStore
-
-from config import RAW_DATA_KEY, PROCESSED_DATA_KEY, FEATURE_PARQUET_KEY
-
-print("Loading raw data from MinIO...")
-store = MinioArtifactStore()
-data = store.load_df(RAW_DATA_KEY)
+print(f"Loading raw data from {RAW_DATA_PATH}...")
+data = pd.read_csv(RAW_DATA_PATH)
 
 STOCKS = data['Ticker'].unique()
 
@@ -55,14 +52,9 @@ data['Date'] = pd.to_datetime(data['Date']).dt.tz_localize('UTC')
 data['ticker'] = data['Ticker']
 data['created_timestamp'] = pd.Timestamp.now(tz='UTC')
 
-print("\nSaving processed data to MinIO...")
-store.save_df(data, PROCESSED_DATA_KEY)
+print(f"\nSaving processed data to {PROCESSED_DATA_PATH}...")
+data.to_csv(PROCESSED_DATA_PATH, index=False)
 
-parquet_buffer = BytesIO()
-data.to_parquet(parquet_buffer, index=False)
-store.s3_client.put_object(
-    Bucket=store.bucket_name,
-    Key=FEATURE_PARQUET_KEY,
-    Body=parquet_buffer.getvalue()
-)
-print("Saved stock_features.parquet to MinIO")
+print(f"Saving parquet to {FEATURE_PARQUET_PATH}...")
+data.to_parquet(FEATURE_PARQUET_PATH, index=False)
+print("Done.")
