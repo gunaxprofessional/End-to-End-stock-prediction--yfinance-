@@ -2,9 +2,9 @@ project: stock_prediction
 provider: local
 registry:
   registry_type: file
-  path: registry.db
+  path: ../../artifacts/feast/registry.db
 online_store:
   type: sqlite
-  path: online_store.db
+  path: ../../artifacts/feast/online_store.db
 offline_store:
   type: file

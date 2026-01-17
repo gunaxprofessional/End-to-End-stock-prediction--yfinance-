@@ -1,0 +1,4 @@
+-r base.txt
+scikit-learn==1.6.1
+shap==0.50.0
+evidently==0.7.14

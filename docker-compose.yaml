@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # ============ PIPELINE CONTAINERS ============
+  data-ingestion:
+    build:
+      context: .
+      dockerfile: docker/data-ingestion/Dockerfile
+    image: stock-data-ingestion:latest
+    container_name: stock-data-ingestion
+    volumes:
+      - stock-artifacts:/app/artifacts
+    networks:
+      - stock-network
+
+  feature-engineering:
+    build:
+      context: .
+      dockerfile: docker/feature-engineering/Dockerfile
+    image: stock-feature-engineering:latest
+    container_name: stock-feature-engineering
+    volumes:
+      - stock-artifacts:/app/artifacts
+    networks:
+      - stock-network
+    depends_on:
+      - data-ingestion
+
+  # ============ PRICE REGRESSION MODEL ============
+  price-trainer:
+    build:
+      context: .
+      dockerfile: docker/price-regression/Dockerfile.train
+    image: stock-price-trainer:latest
+    container_name: stock-price-trainer
+    volumes:
+      - stock-artifacts:/app/artifacts
+    networks:
+      - stock-network
+    depends_on:
+      - feature-engineering
+
+  price-server:
+    build:
+      context: .
+      dockerfile: docker/price-regression/Dockerfile.serve
+    image: stock-price-server:latest
+    container_name: stock-price-server
+    ports:
+      - "8001:8001"
+    volumes:
+      - stock-artifacts:/app/artifacts
+    networks:
+      - stock-network
+    depends_on:
+      - price-trainer
+    restart: unless-stopped
+
+  # ============ DIRECTION CLASSIFIER MODEL ============
+  direction-trainer:
+    build:
+      context: .
+      dockerfile: docker/direction-classifier/Dockerfile.train
+    image: stock-direction-trainer:latest
+    container_name: stock-direction-trainer
+    volumes:
+      - stock-artifacts:/app/artifacts
+    networks:
+      - stock-network
+    depends_on:
+      - feature-engineering
+
+  direction-server:
+    build:
+      context: .
+      dockerfile: docker/direction-classifier/Dockerfile.serve
+    image: stock-direction-server:latest
+    container_name: stock-direction-server
+    ports:
+      - "8002:8002"
+    volumes:
+      - stock-artifacts:/app/artifacts
+    networks:
+      - stock-network
+    depends_on:
+      - direction-trainer
+    restart: unless-stopped
+
+volumes:
+  stock-artifacts:
+    name: stock-artifacts
+
+networks:
+  stock-network:
+    name: stock-network
+    driver: bridge

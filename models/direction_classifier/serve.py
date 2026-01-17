@@ -118,6 +118,11 @@ def read_root():
     }
 
 
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "model": MODEL_NAME, "version": model_version.version}
+
+
 @app.get("/predict_direction")
 def predict_direction():
     """Predict stock direction (UP/DOWN) for all tickers."""
@@ -240,4 +245,4 @@ def predict_single_ticker(ticker: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8002)
+    uvicorn.run(app, host="0.0.0.0", port=8002)

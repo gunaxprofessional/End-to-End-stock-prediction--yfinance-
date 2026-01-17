@@ -1,0 +1,40 @@
+# Ignore artifacts
+artifacts/
+
+# Ignore git
+.git/
+.gitignore
+
+# Ignore IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Ignore Feast registry and online store (will be created fresh in container)
+feature_store/feature_repo/registry.db
+feature_store/feature_repo/online_store.db
+feature_store/feature_repo/__pycache__/
+
+# Ignore local environment
+.env
+*.env
+
+# Ignore documentation
+*.md
+!requirements/*.txt
+
+# Ignore docker files during build
+docker/
+docker-compose*.yaml
+Dockerfile*
+
+# Ignore airflow folder
+airflow/

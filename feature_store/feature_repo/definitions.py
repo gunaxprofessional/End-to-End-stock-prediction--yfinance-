@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from datetime import timedelta
 from feast import Entity, FeatureView, Field, FileSource, ValueType
@@ -10,8 +11,9 @@ ticker = Entity(
     description="Stock Ticker Symbol"
 )
 
-# Fixed local path for parquet file
-_parquet_path = str(Path(__file__).parent.parent.parent / "artifacts" / "data" / "processed" / "stock_features.parquet")
+# Path for parquet file - supports both local dev and container environments
+_artifacts_dir = Path(os.getenv("ARTIFACTS_DIR", Path(__file__).parent.parent.parent / "artifacts"))
+_parquet_path = str(_artifacts_dir / "data" / "processed" / "stock_features.parquet")
 
 stock_features_source = FileSource(
     name="stock_features_source",

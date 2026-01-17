@@ -93,6 +93,11 @@ def read_root():
     return {"welcome": "Stock Price Prediction API", "model": MODEL_NAME}
 
 
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "model": MODEL_NAME}
+
+
 @app.get("/predict_next_close")
 def predict_next_close():
     """Predict next day closing price for all tickers."""
@@ -153,4 +158,4 @@ def predict_next_close():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8001)
