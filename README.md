@@ -265,13 +265,13 @@ graph LR
     AIRFLOW -.->|Schedule| MONITOR
     
     %% Styling
-    classDef source fill:#e1f5ff,stroke:#333,stroke-width:2px
-    classDef orchestration fill:#fff3cd,stroke:#333,stroke-width:2px
-    classDef pipeline fill:#d4edda,stroke:#333,stroke-width:2px
-    classDef storage fill:#d1ecf1,stroke:#333,stroke-width:2px
-    classDef model fill:#cce5ff,stroke:#333,stroke-width:2px
-    classDef serve fill:#f8d7da,stroke:#333,stroke-width:2px
-    classDef monitor fill:#e2e3e5,stroke:#333,stroke-width:2px
+    classDef source fill:#e1f5ff,stroke:#333,stroke-width:2px,color:black
+    classDef orchestration fill:#fff3cd,stroke:#333,stroke-width:2px,color:black
+    classDef pipeline fill:#d4edda,stroke:#333,stroke-width:2px,color:black
+    classDef storage fill:#d1ecf1,stroke:#333,stroke-width:2px,color:black
+    classDef model fill:#cce5ff,stroke:#333,stroke-width:2px,color:black
+    classDef serve fill:#f8d7da,stroke:#333,stroke-width:2px,color:black
+    classDef monitor fill:#e2e3e5,stroke:#333,stroke-width:2px,color:black
     
     class YF source
     class AIRFLOW orchestration
