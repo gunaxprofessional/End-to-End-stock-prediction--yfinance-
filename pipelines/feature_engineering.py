@@ -32,6 +32,12 @@ def create_features(df):
 print(f"Loading raw data from {RAW_DATA_PATH}...")
 data = pd.read_csv(RAW_DATA_PATH)
 
+# Ensure numeric columns are properly typed
+numeric_cols = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+for col in numeric_cols:
+    if col in data.columns:
+        data[col] = pd.to_numeric(data[col], errors='coerce')
+
 STOCKS = data['Ticker'].unique()
 
 print("Applying feature engineering...")

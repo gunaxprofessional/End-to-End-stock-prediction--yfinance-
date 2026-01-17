@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ============ PIPELINE CONTAINERS ============
   data-ingestion:
@@ -93,4 +91,4 @@ volumes:
 networks:
   stock-network:
     name: stock-network
-    driver: bridge
+    external: true
