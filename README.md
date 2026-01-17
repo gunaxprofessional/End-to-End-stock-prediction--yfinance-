@@ -226,154 +226,86 @@ curl http://localhost:8002/predict_direction/AAPL
 ## Architecture
 
 ```mermaid
-graph TB
-    subgraph "Data Sources"
-        YF[Yahoo Finance API<br/>yfinance]
-    end
+graph LR
+    %% Data Sources
+    YF[Yahoo Finance]
     
-    subgraph "Airflow Orchestration Layer"
-        AF_SCHED[Airflow Scheduler]
-        AF_DAGS{DAGs}
-        AF_SCHED --> AF_DAGS
-    end
+    %% Orchestration
+    AIRFLOW[Airflow<br/>Scheduler]
     
-    subgraph "Docker Containers"
-        subgraph "Data Pipeline"
-            DI[Data Ingestion<br/>Container]
-            FE[Feature Engineering<br/>Container]
-        end
-        
-        subgraph "Model Training"
-            PT[Price Trainer<br/>Container]
-            DT[Direction Trainer<br/>Container]
-        end
-        
-        subgraph "Model Serving"
-            PS[Price Server<br/>:8001<br/>FastAPI]
-            DS[Direction Server<br/>:8002<br/>FastAPI]
-        end
-        
-        subgraph "Monitoring"
-            PM[Price Monitor<br/>Container]
-            DM[Direction Monitor<br/>Container]
-        end
-    end
+    %% Pipeline Stages
+    INGEST[Data<br/>Ingestion]
+    FEATURES[Feature<br/>Engineering]
+    FEAST[(Feast<br/>Feature Store)]
     
-    subgraph "Feature Store - Feast"
-        FS_OFF[(Offline Store<br/>Parquet)]
-        FS_ON[(Online Store<br/>SQLite)]
-        FS_REG[Registry]
-    end
+    %% Training
+    TRAIN[Model<br/>Training]
+    MLFLOW[(MLflow<br/>Registry)]
     
-    subgraph "Model Registry - MLflow"
-        ML_TRACK[(Tracking Server<br/>Experiments)]
-        ML_REG[Model Registry<br/>@champion]
-    end
+    %% Serving
+    API[Prediction<br/>APIs<br/>:8001/:8002]
     
-    subgraph "Persistent Storage"
-        VOL[stock-artifacts<br/>Docker Volume]
-        VOL_DATA[Raw/Processed Data]
-        VOL_PRED[Predictions]
-        VOL_REP[HTML Reports]
-    end
+    %% Monitoring
+    MONITOR[Monitoring<br/>& Reports]
     
-    subgraph "Monitoring & Reports"
-        EV[Evidently AI<br/>Drift Reports]
-        SHAP[SHAP Values<br/>Explainability]
-    end
+    %% Main Flow
+    YF -->|Stock Data| INGEST
+    AIRFLOW -.->|Orchestrates| INGEST
+    INGEST --> FEATURES
+    FEATURES --> FEAST
     
-    %% Data Flow
-    YF -->|Download| DI
-    DI -->|stock_data.csv| VOL_DATA
-    AF_DAGS -->|Trigger| DI
+    FEAST -->|Offline Features| TRAIN
+    TRAIN -->|Log & Register| MLFLOW
     
-    VOL_DATA -->|Read| FE
-    FE -->|stock_features.parquet| FS_OFF
-    FE -->|Materialize| FS_ON
-    FE -->|Update| FS_REG
-    AF_DAGS -->|Trigger| FE
+    MLFLOW -->|Load Models| API
+    FEAST -->|Online Features| API
     
-    FS_OFF -->|Training Features| PT
-    FS_OFF -->|Training Features| DT
-    AF_DAGS -->|Trigger| PT
-    AF_DAGS -->|Trigger| DT
+    API -->|Predictions| MONITOR
+    YF -->|Actual Prices| MONITOR
+    AIRFLOW -.->|Schedule| MONITOR
     
-    PT -->|Log Metrics| ML_TRACK
-    DT -->|Log Metrics| ML_TRACK
-    PT -->|Register Model| ML_REG
-    DT -->|Register Model| ML_REG
+    %% Styling
+    classDef source fill:#e1f5ff,stroke:#333,stroke-width:2px
+    classDef orchestration fill:#fff3cd,stroke:#333,stroke-width:2px
+    classDef pipeline fill:#d4edda,stroke:#333,stroke-width:2px
+    classDef storage fill:#d1ecf1,stroke:#333,stroke-width:2px
+    classDef model fill:#cce5ff,stroke:#333,stroke-width:2px
+    classDef serve fill:#f8d7da,stroke:#333,stroke-width:2px
+    classDef monitor fill:#e2e3e5,stroke:#333,stroke-width:2px
     
-    ML_REG -->|Load @champion| PS
-    ML_REG -->|Load @champion| DS
-    FS_ON -->|Online Features| PS
-    FS_ON -->|Online Features| DS
-    
-    PS -->|Predictions| VOL_PRED
-    DS -->|Predictions| VOL_PRED
-    PS -->|SHAP| SHAP
-    DS -->|SHAP| SHAP
-    
-    VOL_PRED -->|Read| PM
-    VOL_PRED -->|Read| DM
-    YF -->|Actual Prices| PM
-    YF -->|Actual Prices| DM
-    AF_DAGS -->|Trigger| PM
-    AF_DAGS -->|Trigger| DM
-    
-    PM -->|Generate| EV
-    DM -->|Generate| EV
-    EV -->|Save| VOL_REP
-    
-    %% Storage connections
-    FS_OFF -.->|Stored in| VOL
-    FS_ON -.->|Stored in| VOL
-    FS_REG -.->|Stored in| VOL
-    ML_TRACK -.->|Stored in| VOL
-    ML_REG -.->|Stored in| VOL
-    
-    style YF fill:#e1f5ff
-    style AF_SCHED fill:#fff3cd
-    style AF_DAGS fill:#fff3cd
-    style DI fill:#d4edda
-    style FE fill:#d4edda
-    style PT fill:#cce5ff
-    style DT fill:#cce5ff
-    style PS fill:#f8d7da
-    style DS fill:#f8d7da
-    style PM fill:#e2e3e5
-    style DM fill:#e2e3e5
-    style FS_OFF fill:#d1ecf1
-    style FS_ON fill:#d1ecf1
-    style ML_REG fill:#e7d4f5
-    style VOL fill:#f9f9f9
+    class YF source
+    class AIRFLOW orchestration
+    class INGEST,FEATURES pipeline
+    class FEAST,MLFLOW storage
+    class TRAIN model
+    class API serve
+    class MONITOR monitor
 ```
 
-### Component Interactions
+### Pipeline Flow
 
-**Data Pipeline:**
-1. **Airflow** triggers **Data Ingestion** → Downloads from Yahoo Finance
-2. **Feature Engineering** → Creates 15 technical indicators
-3. **Feast Materialization** → Syncs features to online store
+**1. Data Pipeline** (Orchestrated by Airflow)
+- Fetch stock data from Yahoo Finance
+- Engineer 15 technical indicators
+- Materialize features to Feast (offline + online stores)
 
-**Training Pipeline:**
-4. Models fetch historical features from **Feast Offline Store**
-5. Train **XGBoost** models (Price Regressor + Direction Classifier)
-6. Log experiments to **MLflow Tracking**
-7. Register best models as **@champion** in **MLflow Registry**
+**2. Training Pipeline**
+- Retrieve historical features from Feast offline store
+- Train XGBoost models (Price Regression + Direction Classifier)
+- Log experiments and register models in MLflow as `@champion`
 
-**Serving Pipeline:**
-8. **FastAPI servers** load @champion models from MLflow
-9. Fetch real-time features from **Feast Online Store**
-10. Generate predictions with **SHAP explanations**
-11. Return predictions via REST APIs
+**3. Serving Pipeline**
+- Load `@champion` models from MLflow registry
+- Fetch real-time features from Feast online store
+- Serve predictions via FastAPI (ports 8001, 8002)
+- Generate SHAP explanations
 
-**Monitoring Pipeline:**
-12. **Monitor scripts** fetch actual prices from Yahoo Finance
-13. Compare predictions vs actuals
-14. Generate **Evidently AI** drift and performance reports
-15. Save HTML reports to artifacts volume
+**4. Monitoring Pipeline**
+- Collect predictions and actual outcomes
+- Generate Evidently AI drift and performance reports
+- Store HTML reports in artifacts volume
 
-**All data persists in the `stock-artifacts` Docker volume**
+**Infrastructure:** All components run in Docker containers sharing the `stock-artifacts` volume
 
 ## Tech Stack
 
