@@ -226,7 +226,7 @@ curl http://localhost:8002/predict_direction/AAPL
 ## Architecture
 
 ```mermaid
-graph LR
+graph TB
     %% Data Sources
     YF[Yahoo Finance]
     
